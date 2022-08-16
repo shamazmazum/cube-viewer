@@ -31,12 +31,11 @@
                        (vari:vec3 0.1)
                        (vari:vec3 0.9176 0.7137 0.4627)))
             (norm-light (vari:normalize light)))
-       (* color
-          (+ 0.1 ; Ambient light
-             (* 0.9 ; Diffused light
-                (vari:clamp
-                 (vari:dot norm-light normal-in)
-                 0.0 1.0))))))))
+       (+ 0.1 ; Ambient light
+          (* 0.9 color ; Diffused light
+             (vari:clamp
+              (vari:dot norm-light normal-in)
+              0.0 1.0)))))))
 
 (defparameter *compiled-shaders*
   (varjo:rolling-translate
