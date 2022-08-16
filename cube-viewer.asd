@@ -7,6 +7,7 @@
     :serial t
     :pathname "src/"
     :components ((:file "package")
+                 (:file "cube")
                  (:file "cube-viewer"))
     :depends-on (:alexandria
                  :serapeum

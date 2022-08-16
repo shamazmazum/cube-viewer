@@ -1,51 +1,42 @@
 (in-package :cube-viewer)
 
-(declaim (type (simple-array single-float (#.(* 3 14))) +cube+))
-(alex:define-constant +cube+
-    (map '(vector single-float)
-         #'identity
-         '(1.0  1.0  1.0
-           -1.0  1.0  1.0
-           1.0 -1.0  1.0
-           -1.0 -1.0  1.0
-           -1.0 -1.0 -1.0
-           -1.0  1.0  1.0
-           -1.0  1.0 -1.0
-           1.0  1.0  1.0
-           1.0  1.0 -1.0
-           1.0 -1.0  1.0
-           1.0 -1.0 -1.0
-           -1.0 -1.0 -1.0
-           1.0  1.0 -1.0
-           -1.0  1.0 -1.0))
-  :test #'equalp)
-
 (declaim (type varjo.internals:vertex-stage *vertex-shader*))
 (defparameter *vertex-shader*
   (varjo:make-stage
    :vertex
-   '((vertex-in :vec3))
+   '((vertex-in :vec3)
+     (normal-in :vec3))
    '((transform :mat4)
      (scale     :float))
    '(:450)
    '((let ((coord (* vertex-in scale)))
      (values
       (* transform (vari:vec4 coord 1.0))
-      coord)))))
+      coord
+      normal-in)))))
 
 (declaim (type varjo.internals:fragment-stage *fragment-shader*))
 (defparameter *fragment-shader*
   (varjo:make-stage
    :fragment
-   '((vertex-in :vec3))
+   '((vertex-in :vec3)
+     (normal-in :vec3))
    '((smpl      :sampler-3d)
-     (threshold :float))
+     (threshold :float)
+     (light     :vec3))
    '(:450)
    '((let* ((coord (+ 0.5 (* 0.5 vertex-in)))
-            (density (aref (vari:texture smpl coord) 0)))
-       (if (<= density threshold)
-           (vari:vec3 0.1)
-           (vari:vec3 0.9176 0.7137 0.4627))))))
+            (density (aref (vari:texture smpl coord) 0))
+            (color (if (<= density threshold)
+                       (vari:vec3 0.1)
+                       (vari:vec3 0.9176 0.7137 0.4627)))
+            (norm-light (vari:normalize light)))
+       (* color
+          (+ 0.1 ; Ambient light
+             (* 0.9 ; Diffused light
+                (vari:clamp
+                 (vari:dot norm-light normal-in)
+                 0.0 1.0))))))))
 
 (defparameter *compiled-shaders*
   (varjo:rolling-translate
@@ -85,11 +76,13 @@
   (program       -1 :type fixnum)
   (vao           -1 :type fixnum)
   (vertex-buffer -1 :type fixnum)
+  (normal-buffer -1 :type fixnum)
   (texture       -1 :type fixnum)
   (transform-loc -1 :type fixnum)
   (sampler-loc   -1 :type fixnum)
   (threshold-loc -1 :type fixnum)
   (scale-loc     -1 :type fixnum)
+  (light-loc     -1 :type fixnum)
   (threshold    0d0 :type double-float)
   (scale        1d0 :type double-float))
 
@@ -120,18 +113,23 @@
   (declare (type gtk:gtk-gl-area area)
            (type gl-state gl-state)
            (type camera camera))
+  ;; Clear buffers
   (gl:clear-color 1.0 1.0 1.0 0.0)
   (gl:clear :color-buffer-bit)
   (gl:clear-color 0.0 0.0 0.0 0.0)
   (gl:clear :depth-buffer-bit)
   (gl:enable :depth-test :cull-face)
 
+  ;; Set uniforms
   (gl:use-program (gl-state-program gl-state))
   (gl:uniformi (gl-state-sampler-loc gl-state) 0)
   (gl:uniformf (gl-state-threshold-loc gl-state)
                (float (gl-state-threshold gl-state) 0.0))
   (gl:uniformf (gl-state-scale-loc gl-state)
                (float (gl-state-scale gl-state) 0.0))
+  (let ((position (camera-position camera)))
+    (apply #'gl:uniformf (gl-state-light-loc gl-state)
+           (map 'list #'identity position)))
   (let ((world->screen
          (let* ((allocation (gtk:gtk-widget-get-allocation area))
                 (width  (gdk:gdk-rectangle-width  allocation))
@@ -141,14 +139,21 @@
      (gl-state-transform-loc gl-state)
      4 (vector world->screen) nil))
 
+  ;; Bind texture
   (gl:active-texture :texture0)
   (gl:bind-texture :texture-3d (gl-state-texture gl-state))
 
+  ;; Draw
   (gl:enable-vertex-attrib-array 0)
   (gl:bind-buffer :array-buffer (gl-state-vertex-buffer gl-state))
   (gl:vertex-attrib-pointer 0 3 :float nil 0
                             (cffi:null-pointer))
-  (gl:draw-arrays :triangle-strip 0 (/ (length +cube+) 3))
+  (gl:enable-vertex-attrib-array 1)
+  (gl:bind-buffer :array-buffer (gl-state-normal-buffer gl-state))
+  (gl:vertex-attrib-pointer 1 3 :float nil 0
+                            (cffi:null-pointer))
+  (gl:draw-arrays :triangles 0 (/ (length +cube-vertices+) 3))
+  (gl:disable-vertex-attrib-array 1)
   (gl:disable-vertex-attrib-array 0))
 
 (sera:-> prepare-rendering
@@ -162,15 +167,25 @@
 
   (with-accessors ((vao           gl-state-vao)
                    (vertex-buffer gl-state-vertex-buffer)
+                   (normal-buffer gl-state-normal-buffer)
                    (program       gl-state-program)
                    (texture       gl-state-texture))
       gl-state
-    ;; Fill vertices
+    ;; Create vertex array
     (setf vao (gl:gen-vertex-array))
     (gl:bind-vertex-array vao)
+
+    ;; Fill vertices
     (setf vertex-buffer (gl:gen-buffer))
     (gl:bind-buffer :array-buffer vertex-buffer)
-    (with-gl-array (vertex-array +cube+)
+    (with-gl-array (vertex-array +cube-vertices+)
+      (gl:buffer-data :array-buffer :static-draw
+                      vertex-array))
+
+    ;; Fill normals
+    (setf normal-buffer (gl:gen-buffer))
+    (gl:bind-buffer :array-buffer normal-buffer)
+    (with-gl-array (vertex-array +cube-normals+)
       (gl:buffer-data :array-buffer :static-draw
                       vertex-array))
 
@@ -220,7 +235,9 @@
      (gl-state-threshold-loc gl-state)
      (gl:get-uniform-location program "THRESHOLD")
      (gl-state-scale-loc gl-state)
-     (gl:get-uniform-location program "SCALE")))
+     (gl:get-uniform-location program "SCALE")
+     (gl-state-light-loc gl-state)
+     (gl:get-uniform-location program "LIGHT")))
   (values))
 
 (defun cleanup (area gl-state)
