@@ -335,7 +335,10 @@ of the array must be 8 bit unsigned values."
         (gl-state (make-gl-state))
         (camera (make-camera)))
     (gtk:within-main-loop
-      (let ((window (gtk:gtk-window-new :toplevel))
+      (let ((window (make-instance 'gtk:gtk-window
+                                   :type  :toplevel
+                                   :title (format nil "cube-viewer: ~a"
+                                                  (pathname-name (pathname name)))))
             (area (make-instance 'gtk:gtk-gl-area))
             (main-box (make-instance 'gtk:gtk-box :orientation :vertical))
             (control-box (make-instance 'gtk:gtk-box :orientation :horizontal))
