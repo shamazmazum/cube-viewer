@@ -317,32 +317,18 @@
          (lambda (widget)
            (declare (ignore widget))
            (cleanup area gl-state)))
-        (gobject:g-signal-connect
-         threshold-scale "value-changed"
-         (lambda (scale)
-           (setf (gl-state-threshold gl-state)
-                 (gtk:gtk-range-get-value scale))
-           (gtk:gtk-gl-area-queue-render area)))
-        (gobject:g-signal-connect
-         scale-scale "value-changed"
-         (lambda (scale)
-           (setf (gl-state-scale gl-state)
-                 (gtk:gtk-range-get-value scale))
-           (gtk:gtk-gl-area-queue-render area)))
-        (gobject:g-signal-connect
-         ϕ-scale "value-changed"
-         (lambda (scale)
-           (setf (camera-ϕ camera)
-                 (gtk:gtk-range-get-value scale))
-           (update-camera-position camera)
-           (gtk:gtk-gl-area-queue-render area)))
-        (gobject:g-signal-connect
-         ψ-scale "value-changed"
-         (lambda (scale)
-           (setf (camera-ψ camera)
-                 (gtk:gtk-range-get-value scale))
-           (update-camera-position camera)
-           (gtk:gtk-gl-area-queue-render area)))
+        (macrolet ((set-scale-handler (widget place)
+                     `(gobject:g-signal-connect
+                       ,widget "value-changed"
+                       (lambda (scale)
+                         (setf ,place (gtk:gtk-range-get-value scale))
+                         (update-camera-position camera)
+                         (gtk:gtk-gl-area-queue-render area)))))
+          (set-scale-handler threshold-scale (gl-state-threshold gl-state))
+          (set-scale-handler scale-scale (gl-state-scale gl-state))
+          (set-scale-handler ϕ-scale (camera-ϕ camera))
+          (set-scale-handler ψ-scale (camera-ψ camera)))
+
         (gtk:gtk-box-pack-start main-box area)
         (gtk:gtk-box-pack-end main-box control-box :expand nil)
         (let ((misc-box (make-instance 'gtk:gtk-box :orientation :vertical)))
