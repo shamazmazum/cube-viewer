@@ -16,3 +16,18 @@
                  :cl-opengl
                  :rtg-math
                  :array-operations))
+
+(defsystem :cube-viewer/application
+    :name :cube-viewer/application
+    :version "0.1"
+    :author "Vasily Postnicov <shamaz.mazum@gmail.com>"
+    :description "Porous media visualization application"
+    :license "2-clause BSD"
+    :serial t
+    :pathname "app/"
+    :components ((:file "package")
+                 (:file "application"))
+    :depends-on (:cube-viewer)
+    :build-operation program-op
+    :build-pathname "cube-viewer"
+    :entry-point "cube-viewer-application:main")

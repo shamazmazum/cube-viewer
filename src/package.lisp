@@ -2,4 +2,5 @@
   (:use #:cl)
   (:local-nicknames (:alex :alexandria)
                     (:sera :serapeum))
-  (:export #:run))
+  (:export #:run
+           #:fatal-error))

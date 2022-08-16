@@ -1,5 +1,9 @@
 (in-package :cube-viewer)
 
+(define-condition fatal-error (simple-error)
+  ()
+  (:documentation "Unrecoverable error"))
+
 (declaim (type varjo.internals:vertex-stage *vertex-shader*))
 (defparameter *vertex-shader*
   (varjo:make-stage
@@ -11,9 +15,9 @@
    '(:450)
    '((let ((coord (* vertex-in scale)))
      (values
-      (* transform (vari:vec4 coord 1.0))
-      coord
-      normal-in)))))
+      (* transform (vari:vec4 coord 1.0)) ; gl_Position
+      coord                               ; Vertex coordinate (world system)
+      normal-in)))))                      ; Normal coordinate (world system)
 
 (declaim (type varjo.internals:fragment-stage *fragment-shader*))
 (defparameter *fragment-shader*
@@ -46,6 +50,7 @@
          ((simple-array single-float (*)))
          (values gl:gl-array &optional))
 (defun array->gl (array)
+  "Convert one dimensional lisp array of floats to foreign array"
   (let ((gl-array (gl:alloc-gl-array :float (length array))))
     (loop for i from 0 by 1
           for x across array do
@@ -65,9 +70,15 @@
           alex:positive-fixnum)
          (values (simple-array (unsigned-byte 8) (* * *)) &optional))
 (defun load-data (name w h d)
+  "Load density data from a raw file"
   (let ((array (make-array (list w h d)
                            :element-type '(unsigned-byte 8))))
     (with-open-file (input name :element-type '(unsigned-byte 8))
+      (unless (= (file-length input)
+                 (* w h d))
+        (error 'fatal-error
+               :format-control "File size mismatch: expected ~d, got ~d"
+               :format-arguments (list (* w h d) (file-length input))))
       (read-sequence (aops:flatten array) input))
     array))
 
@@ -97,6 +108,8 @@
          (camera alex:positive-fixnum alex:positive-fixnum)
          (values rtg-math.types:mat4 &optional))
 (defun world->screen (camera width height)
+  "Return world -> screen projection matrix. WIDTH and HEIGHT are
+dimensions of the GtkGLArea widget."
   (rtg-math.matrix4:*
    (rtg-math.projection:perspective
     (float width)
@@ -223,7 +236,7 @@
     ;; Check program status
     (let ((status (gl:get-program program :link-status)))
       (unless status
-        (error "Program linkage failure")))
+        (error 'fatal-error :format-control "Program linkage failure")))
 
     ;; Set locations of uniforms
     (setf
@@ -278,6 +291,9 @@
     camera))
 
 (defun run (name side)
+  "Run cube viewer. NAME is a name of raw file with XCT
+densities. SIDE is a side of cubic array stored in that file. Elements
+of the array must be 8 bit unsigned values."
   (declare (type (or pathname string) name)
            (type alex:positive-fixnum side))
   (let ((density-data (load-data name side side side)))
