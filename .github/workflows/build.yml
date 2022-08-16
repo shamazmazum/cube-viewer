@@ -14,6 +14,6 @@ jobs:
       - name: Install Ultralisp
         run: |
           ros -e '(ql-dist:install-dist "http://dist.ultralisp.org/" :prompt nil)'
-      - name: Run tests
+      - name: Build
         run: |
           ros -s cube-viewer -e '(uiop:quit 0)'
