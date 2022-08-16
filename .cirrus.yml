@@ -1,0 +1,12 @@
+freebsd_instance:
+  image_family: freebsd-13-0
+
+task:
+  preinstall_script:
+    - pkg install -y curl git gtk3
+  install_script:
+    - curl -L https://raw.githubusercontent.com/shamazmazum/cl-cirrus/master/install.sh | sh
+  script:
+    - cl -e '(ql-dist:install-dist "http://dist.ultralisp.org/"
+                      :prompt nil)'
+    - cl -l cube-viewer -e '(uiop:quit 0)'
