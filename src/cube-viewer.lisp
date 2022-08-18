@@ -350,7 +350,7 @@ of the array must be 8 bit unsigned values."
                                  0d0 (* 2 pi) 1d-1))
             (ψ-scale (make-scale :horizontal
                                  (camera-ψ camera)
-                                 (- pi) pi 1d-1))
+                                 (- (/ pi 2)) (+ (/ pi 2)) 1d-1))
             (solid-color (make-color-button (gl-state-solid-color gl-state)))
             (void-color  (make-color-button (gl-state-void-color  gl-state))))
         (flet ((scale-handler (scale)
