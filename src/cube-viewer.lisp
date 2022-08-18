@@ -23,17 +23,18 @@
 (defparameter *fragment-shader*
   (varjo:make-stage
    :fragment
-   '((vertex-in :vec3)
-     (normal-in :vec3))
-   '((smpl      :sampler-3d)
-     (threshold :float)
-     (light     :vec3))
+   '((vertex-in   :vec3)
+     (normal-in   :vec3))
+   '((smpl        :sampler-3d)
+     (threshold   :float)
+     (light       :vec3)
+     (color-solid :vec3)
+     (color-void  :vec3))
    '(:450)
    '((let* ((coord (+ 0.5 (* 0.5 vertex-in)))
             (density (aref (vari:texture smpl coord) 0))
             (color (if (<= density threshold)
-                       (vari:vec3 0.1)
-                       (vari:vec3 0.9176 0.7137 0.4627)))
+                       color-void color-solid))
             (norm-light (vari:normalize light)))
        (+ 0.1 ; Ambient light
           (* 0.9 color ; Diffused light
@@ -82,6 +83,15 @@
       (read-sequence (aops:flatten array) input))
     array))
 
+(deftype dvec3 () '(simple-array double-float (3)))
+(sera:-> dvec3
+         (double-float double-float double-float)
+         (values dvec3 &optional))
+(defun dvec3 (x y z)
+  (make-array 3
+              :element-type 'double-float
+              :initial-contents (list x y z)))
+
 (defstruct gl-state
   (program       -1 :type fixnum)
   (vao           -1 :type fixnum)
@@ -93,6 +103,12 @@
   (threshold-loc -1 :type fixnum)
   (scale-loc     -1 :type fixnum)
   (light-loc     -1 :type fixnum)
+  (solid-loc     -1 :type fixnum)
+  (void-loc      -1 :type fixnum)
+  (solid-color   (dvec3 0.9176d0 0.7137d0 0.4627d0)
+                    :type dvec3)
+  (void-color    (dvec3 0.1d0 0.1d0 0.1d0)
+                    :type dvec3)
   (threshold    0d0 :type double-float)
   (scale        1d0 :type double-float))
 
@@ -139,9 +155,14 @@ dimensions of the GtkGLArea widget."
                (float (gl-state-threshold gl-state) 0.0))
   (gl:uniformf (gl-state-scale-loc gl-state)
                (float (gl-state-scale gl-state) 0.0))
-  (let ((position (camera-position camera)))
-    (apply #'gl:uniformf (gl-state-light-loc gl-state)
-           (map 'list #'identity position)))
+  (apply #'gl:uniformf (gl-state-light-loc gl-state)
+         (map 'list #'identity (camera-position camera)))
+  (apply #'gl:uniformf (gl-state-solid-loc gl-state)
+         (map 'list (alex:rcurry #'float 0.0)
+              (gl-state-solid-color gl-state)))
+  (apply #'gl:uniformf (gl-state-void-loc gl-state)
+         (map 'list (alex:rcurry #'float 0.0)
+              (gl-state-void-color gl-state)))
   (let ((world->screen
          (let* ((allocation (gtk:gtk-widget-get-allocation area))
                 (width  (gdk:gdk-rectangle-width  allocation))
@@ -249,7 +270,11 @@ dimensions of the GtkGLArea widget."
      (gl-state-scale-loc gl-state)
      (gl:get-uniform-location program "SCALE")
      (gl-state-light-loc gl-state)
-     (gl:get-uniform-location program "LIGHT")))
+     (gl:get-uniform-location program "LIGHT")
+     (gl-state-solid-loc gl-state)
+     (gl:get-uniform-location program "COLOR_SOLID")
+     (gl-state-void-loc gl-state)
+     (gl:get-uniform-location program "COLOR_VOID")))
   (values))
 
 (defun cleanup (area gl-state)
@@ -296,18 +321,38 @@ densities. SIDE is a side of cubic array stored in that file. Elements
 of the array must be 8 bit unsigned values."
   (declare (type (or pathname string) name)
            (type alex:positive-fixnum side))
-  (let ((density-data (load-data name side side side)))
+  (let ((density-data (load-data name side side side))
+        (gl-state (make-gl-state))
+        (camera (make-camera)))
     (gtk:within-main-loop
       (let ((window (gtk:gtk-window-new :toplevel))
             (area (make-instance 'gtk:gtk-gl-area))
             (main-box (make-instance 'gtk:gtk-box :orientation :vertical))
             (control-box (make-instance 'gtk:gtk-box :orientation :horizontal))
-            (gl-state (make-gl-state))
-            (camera (make-camera))
-            (threshold-scale (make-scale :horizontal 0d0 0d0 1d0 5d-2))
-            (scale-scale (make-scale :horizontal 1d0 0d0 1d0 5d-2))
-            (ϕ-scale (make-scale :horizontal  0d0 0d0 (* 2 pi) 1d-1))
-            (ψ-scale (make-scale :horizontal  0d0 (- pi) pi 1d-1)))
+            (threshold-scale (make-scale :horizontal
+                                         (gl-state-threshold gl-state)
+                                         0d0 1d0 5d-2))
+            (scale-scale (make-scale :horizontal
+                                     (gl-state-scale gl-state)
+                                     0d0 1d0 5d-2))
+            (ϕ-scale (make-scale :horizontal
+                                 (camera-ϕ camera)
+                                 0d0 (* 2 pi) 1d-1))
+            (ψ-scale (make-scale :horizontal
+                                 (camera-ψ camera)
+                                 (- pi) pi 1d-1))
+            (solid-color (let ((color (gl-state-solid-color gl-state)))
+                           (make-instance 'gtk:gtk-color-button
+                                          :rgba (gdk:make-gdk-rgba :red   (aref color 0)
+                                                                   :green (aref color 1)
+                                                                   :blue  (aref color 2)
+                                                                   :alpha 1d0))))
+            (void-color (let ((color (gl-state-void-color gl-state)))
+                          (make-instance 'gtk:gtk-color-button
+                                         :rgba (gdk:make-gdk-rgba :red   (aref color 0)
+                                                                  :green (aref color 1)
+                                                                  :blue  (aref color 2)
+                                                                  :alpha 1d0)))))
         (flet ((scale-handler (scale)
                  (let ((value (gtk:gtk-range-get-value scale)))
                    (cond
@@ -316,14 +361,25 @@ of the array must be 8 bit unsigned values."
                      ((eq scale scale-scale)
                       (setf (gl-state-scale gl-state) value))
                      ((eq scale ϕ-scale)
-                      (setf (camera-ϕ camera) value))
+                      (setf (camera-ϕ camera) value)
+                      (update-camera-position camera))
                      ((eq scale ψ-scale)
-                      (setf (camera-ψ camera) value))
+                      (setf (camera-ψ camera) value)
+                      (update-camera-position camera))
                      (t (error "This never happens"))))
-                 (update-camera-position camera)
+                 (gtk:gtk-gl-area-queue-render area))
+               (color-button-handler (button)
+                 (let* ((color (gtk:gtk-color-chooser-get-rgba button))
+                        (vector (dvec3 (gdk:gdk-rgba-red   color)
+                                       (gdk:gdk-rgba-green color)
+                                       (gdk:gdk-rgba-blue  color))))
+                   (cond
+                     ((eq button solid-color)
+                      (setf (gl-state-solid-color gl-state) vector))
+                     ((eq button void-color)
+                      (setf (gl-state-void-color gl-state) vector))
+                     (t (error "This never happens"))))
                  (gtk:gtk-gl-area-queue-render area)))
-          (setf (gl-state-threshold gl-state)
-                (gtk:gtk-range-get-value threshold-scale))
           (update-camera-position camera)
           (gobject:g-signal-connect
            window "destroy"
@@ -351,7 +407,13 @@ of the array must be 8 bit unsigned values."
             #'gobject:g-signal-connect
             "value-changed"
             #'scale-handler)
-           (list threshold-scale scale-scale ϕ-scale ψ-scale)))
+           (list threshold-scale scale-scale ϕ-scale ψ-scale))
+          (mapc
+           (alex:rcurry
+            #'gobject:g-signal-connect
+            "color-set"
+            #'color-button-handler)
+           (list solid-color void-color)))
 
         (gtk:gtk-box-pack-start main-box area)
         (gtk:gtk-box-pack-end main-box control-box :expand nil)
@@ -367,5 +429,9 @@ of the array must be 8 bit unsigned values."
           (gtk:gtk-box-pack-start position-box (make-instance 'gtk:gtk-label :label "Ψ"))
           (gtk:gtk-box-pack-start position-box ψ-scale)
           (gtk:gtk-box-pack-start control-box position-box))
+        (let ((color-box (make-instance 'gtk:gtk-box :orientation :vertical)))
+          (gtk:gtk-box-pack-start color-box solid-color)
+          (gtk:gtk-box-pack-start color-box void-color)
+          (gtk:gtk-box-pack-end control-box color-box :expand nil))
         (gtk:gtk-container-add window main-box)
         (gtk:gtk-widget-show-all window)))))
