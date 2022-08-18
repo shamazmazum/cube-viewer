@@ -301,6 +301,16 @@ dimensions of the GtkGLArea widget."
                                             :upper          stop
                                             :step-increment step)))
 
+(sera:-> make-color-button
+         ((simple-array double-float (3)))
+         (values gtk:gtk-color-button &optional))
+(defun make-color-button (color)
+  (make-instance 'gtk:gtk-color-button
+                 :rgba (gdk:make-gdk-rgba :red   (aref color 0)
+                                          :green (aref color 1)
+                                          :blue  (aref color 2)
+                                          :alpha 1d0)))
+
 (sera:-> update-camera-position
          (camera)
          (values camera &optional))
@@ -341,18 +351,8 @@ of the array must be 8 bit unsigned values."
             (ψ-scale (make-scale :horizontal
                                  (camera-ψ camera)
                                  (- pi) pi 1d-1))
-            (solid-color (let ((color (gl-state-solid-color gl-state)))
-                           (make-instance 'gtk:gtk-color-button
-                                          :rgba (gdk:make-gdk-rgba :red   (aref color 0)
-                                                                   :green (aref color 1)
-                                                                   :blue  (aref color 2)
-                                                                   :alpha 1d0))))
-            (void-color (let ((color (gl-state-void-color gl-state)))
-                          (make-instance 'gtk:gtk-color-button
-                                         :rgba (gdk:make-gdk-rgba :red   (aref color 0)
-                                                                  :green (aref color 1)
-                                                                  :blue  (aref color 2)
-                                                                  :alpha 1d0)))))
+            (solid-color (make-color-button (gl-state-solid-color gl-state)))
+            (void-color  (make-color-button (gl-state-void-color  gl-state))))
         (flet ((scale-handler (scale)
                  (let ((value (gtk:gtk-range-get-value scale)))
                    (cond
