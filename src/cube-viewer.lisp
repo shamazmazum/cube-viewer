@@ -308,41 +308,50 @@ of the array must be 8 bit unsigned values."
             (scale-scale (make-scale :horizontal 1d0 0d0 1d0 5d-2))
             (ϕ-scale (make-scale :horizontal  0d0 0d0 (* 2 pi) 1d-1))
             (ψ-scale (make-scale :horizontal  0d0 (- pi) pi 1d-1)))
-        (setf (gl-state-threshold gl-state)
-              (gtk:gtk-range-get-value threshold-scale))
-        (update-camera-position camera)
-        (gobject:g-signal-connect
-         window "destroy"
-         (lambda (widget)
-           (declare (ignore widget))
-           (gtk:leave-gtk-main)))
-        (gobject:g-signal-connect
-         area "render"
-         (lambda (area context)
-           (declare (ignore context))
-           (draw-cube area gl-state camera)
-           nil))
-        (gobject:g-signal-connect
-         area "realize"
-         (lambda (widget)
-           (declare (ignore widget))
-           (prepare-rendering area gl-state density-data)))
-        (gobject:g-signal-connect
-         area "unrealize"
-         (lambda (widget)
-           (declare (ignore widget))
-           (cleanup area gl-state)))
-        (macrolet ((set-scale-handler (widget place)
-                     `(gobject:g-signal-connect
-                       ,widget "value-changed"
-                       (lambda (scale)
-                         (setf ,place (gtk:gtk-range-get-value scale))
-                         (update-camera-position camera)
-                         (gtk:gtk-gl-area-queue-render area)))))
-          (set-scale-handler threshold-scale (gl-state-threshold gl-state))
-          (set-scale-handler scale-scale (gl-state-scale gl-state))
-          (set-scale-handler ϕ-scale (camera-ϕ camera))
-          (set-scale-handler ψ-scale (camera-ψ camera)))
+        (flet ((scale-handler (scale)
+                 (let ((value (gtk:gtk-range-get-value scale)))
+                   (cond
+                     ((eq scale threshold-scale)
+                      (setf (gl-state-threshold gl-state) value))
+                     ((eq scale scale-scale)
+                      (setf (gl-state-scale gl-state) value))
+                     ((eq scale ϕ-scale)
+                      (setf (camera-ϕ camera) value))
+                     ((eq scale ψ-scale)
+                      (setf (camera-ψ camera) value))
+                     (t (error "This never happens"))))
+                 (update-camera-position camera)
+                 (gtk:gtk-gl-area-queue-render area)))
+          (setf (gl-state-threshold gl-state)
+                (gtk:gtk-range-get-value threshold-scale))
+          (update-camera-position camera)
+          (gobject:g-signal-connect
+           window "destroy"
+           (lambda (widget)
+             (declare (ignore widget))
+             (gtk:leave-gtk-main)))
+          (gobject:g-signal-connect
+           area "render"
+           (lambda (area context)
+             (declare (ignore context))
+             (draw-cube area gl-state camera)
+             nil))
+          (gobject:g-signal-connect
+           area "realize"
+           (lambda (widget)
+             (declare (ignore widget))
+             (prepare-rendering area gl-state density-data)))
+          (gobject:g-signal-connect
+           area "unrealize"
+           (lambda (widget)
+             (declare (ignore widget))
+             (cleanup area gl-state)))
+          (mapc
+           (alex:rcurry
+            #'gobject:g-signal-connect
+            "value-changed"
+            #'scale-handler)
+           (list threshold-scale scale-scale ϕ-scale ψ-scale)))
 
         (gtk:gtk-box-pack-start main-box area)
         (gtk:gtk-box-pack-end main-box control-box :expand nil)
