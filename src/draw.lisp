@@ -23,7 +23,7 @@
 (defstruct camera
   (position (rtg-math.vector3:make 0.0 0.0 0.0)
             :type rtg-math.types:vec3)
-  (fov      90.0 :type single-float)
+  (fov      75.0 :type single-float)
   (ϕ        0d0  :type double-float)
   (ψ        0d0  :type double-float)
   (dist     3d0  :type double-float))
