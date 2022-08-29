@@ -8,6 +8,9 @@
     :pathname "src/"
     :components ((:file "package")
                  (:file "cube")
+                 (:file "shaders")
+                 (:file "utilities")
+                 (:file "draw")
                  (:file "cube-viewer"))
     :depends-on (:alexandria
                  :serapeum
