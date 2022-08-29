@@ -19,7 +19,8 @@
                  :varjo
                  :cl-opengl
                  :rtg-math
-                 :array-operations))
+                 :array-operations
+                 :opticl))
 
 (defsystem :cube-viewer/application
     :name :cube-viewer/application
