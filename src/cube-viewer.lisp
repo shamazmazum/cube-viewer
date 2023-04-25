@@ -7,12 +7,14 @@
 (defun make-scale (orientation value start stop step)
   (make-instance 'gtk:gtk-scale
                  :orientation orientation
-                 :digits 3
-                 :adjustment (make-instance 'gtk:gtk-adjustment
-                                            :value          value
-                                            :lower          start
-                                            :upper          stop
-                                            :step-increment step)))
+                 :hexpand     t
+                 :halign      :fill
+                 :digits      3
+                 :adjustment  (make-instance 'gtk:gtk-adjustment
+                                             :value          value
+                                             :lower          start
+                                             :upper          stop
+                                             :step-increment step)))
 
 (sera:-> make-color-button
          ((simple-array double-float (3)))
@@ -52,8 +54,6 @@ of the array must be 8 bit unsigned values."
                                    :type      :toplevel
                                    :cube-name (pathname-name (pathname name))))
             (area (make-instance 'gtk:gtk-gl-area))
-            (main-box (make-instance 'gtk:gtk-box :orientation :vertical))
-            (control-box (make-instance 'gtk:gtk-box :orientation :horizontal))
             (threshold-scale (make-scale :horizontal
                                          (gl-state-threshold gl-state)
                                          0d0 1d0 5d-2))
@@ -138,24 +138,28 @@ of the array must be 8 bit unsigned values."
             window (alex:curry #'save-image area))))
 
         (update-camera-position camera)
-        (gtk:gtk-box-pack-start main-box area)
-        (gtk:gtk-box-pack-start main-box control-box :expand nil)
-        (gtk:gtk-box-pack-end main-box save-button :expand nil)
-        (let ((misc-box (make-instance 'gtk:gtk-box :orientation :vertical)))
-          (gtk:gtk-box-pack-start misc-box (make-instance 'gtk:gtk-label :label "Threshold"))
-          (gtk:gtk-box-pack-start misc-box threshold-scale)
-          (gtk:gtk-box-pack-start misc-box (make-instance 'gtk:gtk-label :label "Scale"))
-          (gtk:gtk-box-pack-start misc-box scale-scale)
-          (gtk:gtk-box-pack-start control-box misc-box))
-        (let ((position-box (make-instance 'gtk:gtk-box :orientation :vertical)))
-          (gtk:gtk-box-pack-start position-box (make-instance 'gtk:gtk-label :label "Φ"))
-          (gtk:gtk-box-pack-start position-box ϕ-scale)
-          (gtk:gtk-box-pack-start position-box (make-instance 'gtk:gtk-label :label "Ψ"))
-          (gtk:gtk-box-pack-start position-box ψ-scale)
-          (gtk:gtk-box-pack-start control-box position-box))
-        (let ((color-box (make-instance 'gtk:gtk-box :orientation :vertical)))
-          (gtk:gtk-box-pack-start color-box solid-color)
-          (gtk:gtk-box-pack-start color-box void-color)
-          (gtk:gtk-box-pack-end control-box color-box :expand nil))
-        (gtk:gtk-container-add window main-box)
+        (let ((box (make-instance 'gtk:gtk-box :orientation :vertical)))
+          (gtk:gtk-box-pack-start box area)
+          (let ((control-grid (make-instance 'gtk:gtk-grid)))
+            (gtk:gtk-grid-attach
+             control-grid (make-instance 'gtk:gtk-label :label "Threshold")
+             0 0 1 1)
+            (gtk:gtk-grid-attach control-grid threshold-scale 0 1 1 1)
+            (gtk:gtk-grid-attach
+             control-grid (make-instance 'gtk:gtk-label :label "Scale")
+             0 2 1 1)
+            (gtk:gtk-grid-attach control-grid scale-scale 0 3 1 1)
+            (gtk:gtk-grid-attach
+             control-grid (make-instance 'gtk:gtk-label :label "Φ")
+             1 0 1 1)
+            (gtk:gtk-grid-attach control-grid ϕ-scale 1 1 1 1)
+            (gtk:gtk-grid-attach
+             control-grid (make-instance 'gtk:gtk-label :label "Ψ")
+             1 2 1 1)
+            (gtk:gtk-grid-attach control-grid ψ-scale 1 3 1 1)
+            (gtk:gtk-grid-attach control-grid solid-color 2 0 1 2)
+            (gtk:gtk-grid-attach control-grid void-color  2 2 1 2)
+            (gtk:gtk-grid-attach control-grid save-button 0 4 3 1)
+            (gtk:gtk-box-pack-end box control-grid :expand nil))
+          (gtk:gtk-container-add window box))
         (gtk:gtk-widget-show-all window)))))
