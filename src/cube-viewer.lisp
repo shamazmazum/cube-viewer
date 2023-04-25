@@ -54,6 +54,9 @@ of the array must be 8 bit unsigned values."
                                    :type      :toplevel
                                    :cube-name (pathname-name (pathname name))))
             (area (make-instance 'gtk:gtk-gl-area))
+            (use-threshold (make-instance 'gtk:gtk-check-button
+                                          :label  "Use threshold"
+                                          :active (gl-state-use-threshold gl-state)))
             (threshold-scale (make-scale :horizontal
                                          (gl-state-threshold gl-state)
                                          0d0 1d0 5d-2))
@@ -136,6 +139,14 @@ of the array must be 8 bit unsigned values."
            (declare (ignore widget))
            (image-save-dialog
             window (alex:curry #'save-image area))))
+        (gobject:g-signal-connect
+         use-threshold "toggled"
+         (lambda (widget)
+           (declare (ignore widget))
+           (let ((use-threshold-p (gtk:gtk-toggle-button-active use-threshold)))
+             (setf (gtk:gtk-widget-sensitive threshold-scale) use-threshold-p
+                   (gl-state-use-threshold gl-state) use-threshold-p))
+           (gtk:gtk-gl-area-queue-render area)))
 
         (update-camera-position camera)
         (let ((box (make-instance 'gtk:gtk-box :orientation :vertical)))
@@ -144,7 +155,10 @@ of the array must be 8 bit unsigned values."
             (gtk:gtk-grid-attach
              control-grid (make-instance 'gtk:gtk-label :label "Threshold")
              0 0 1 1)
-            (gtk:gtk-grid-attach control-grid threshold-scale 0 1 1 1)
+            (let ((threshold-box (make-instance 'gtk:gtk-box :orientation :horizontal)))
+              (gtk:gtk-box-pack-start threshold-box use-threshold :expand nil :padding 20)
+              (gtk:gtk-box-pack-end threshold-box threshold-scale)
+              (gtk:gtk-grid-attach control-grid threshold-box 0 1 1 1))
             (gtk:gtk-grid-attach
              control-grid (make-instance 'gtk:gtk-label :label "Scale")
              0 2 1 1)

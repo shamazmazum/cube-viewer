@@ -19,18 +19,21 @@
 (defparameter *fragment-shader*
   (varjo:make-stage
    :fragment
-   '((vertex-in   :vec3)
-     (normal-in   :vec3))
-   '((smpl        :sampler-3d)
-     (threshold   :float)
-     (light       :vec3)
-     (color-solid :vec3)
-     (color-void  :vec3))
+   '((vertex-in     :vec3)
+     (normal-in     :vec3))
+   '((smpl          :sampler-3d)
+     (threshold     :float)
+     (use-threshold :bool)
+     (light         :vec3)
+     (color-solid   :vec3)
+     (color-void    :vec3))
    '(:450)
    '((let* ((coord (+ 0.5 (* 0.5 vertex-in)))
             (density (aref (vari:texture smpl coord) 0))
-            (color (if (<= density threshold)
-                       color-void color-solid))
+            (color (if use-threshold
+                       (if (<= density threshold)
+                           color-void color-solid)
+                       (+ color-void (* density (- color-solid color-void)))))
             (norm-light (vari:normalize light)))
        (+ 0.1 ; Ambient light
           (* 0.9 color ; Diffused light
