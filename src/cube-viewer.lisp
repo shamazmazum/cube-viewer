@@ -38,19 +38,6 @@
            (float (* dist (cos ψ) (sin ϕ)) 0.0)))
     camera))
 
-(defclass cube-viewer-window (gtk:gtk-window)
-  ((cube-name :initarg  :cube-name
-              :initform (error "Specify CUBE-NAME")
-              :reader   cube-name
-              :type     string))
-  (:metaclass gobject:gobject-class))
-
-(defmethod initialize-instance :after ((window cube-viewer-window) &rest initargs)
-  (declare (ignore initargs))
-  (setf (gtk:gtk-window-title window)
-        (format nil "cube-viewer: ~a"
-                (cube-name window))))
-
 (defun run (name side)
   "Run cube viewer. NAME is a name of raw file with XCT
 densities. SIDE is a side of cubic array stored in that file. Elements

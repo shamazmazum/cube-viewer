@@ -11,6 +11,7 @@
                  (:file "shaders")
                  (:file "utilities")
                  (:file "draw")
+                 (:file "cube-viewer-window")
                  (:file "save-image")
                  (:file "cube-viewer"))
     :depends-on (:alexandria
