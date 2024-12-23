@@ -37,3 +37,9 @@
     :build-operation program-op
     :build-pathname "cube-viewer"
     :entry-point "cube-viewer-application:main")
+
+#+sb-core-compression
+(defmethod asdf:perform ((o asdf:image-op) (c asdf:system))
+  (uiop:dump-image (asdf:output-file o c)
+                   :executable t
+                   :compression -1))

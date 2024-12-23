@@ -24,9 +24,3 @@
           (princ c *error-output*)
           (terpri *error-output*)
           (uiop:quit 1))))))
-
-#+sb-core-compression
-(defmethod asdf:perform ((o asdf:image-op) (c asdf:system))
-  (uiop:dump-image (asdf:output-file o c)
-                   :executable t
-                   :compression -1))
