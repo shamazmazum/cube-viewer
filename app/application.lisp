@@ -11,6 +11,8 @@
       (print-usage-and-exit))))
 
 (defun main ()
+  #+sbcl
+  (sb-int:set-floating-point-modes :traps nil)
   (let ((arguments (uiop:command-line-arguments)))
     (unless (= (length arguments) 2)
       (print-usage-and-exit))
